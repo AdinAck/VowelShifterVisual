@@ -26,7 +26,8 @@ struct ContentView: View {
 
 class KeyView: NSView, ObservableObject {
     @Published var key: Char = Char()
-    var count: Int = 0
+    @Published var start: Bool = false
+    @Published var count: Int = 0
     
     override var acceptsFirstResponder: Bool { true }
     override func keyDown(with event: NSEvent) {
@@ -34,7 +35,10 @@ class KeyView: NSView, ObservableObject {
             key = Char(value: "\\delete")
             
             if count > 0 { count -= 1}
-            
+        } else if event.keyCode == 36 {
+            withAnimation {
+                start.toggle()
+            }
         } else if let _key = event.charactersIgnoringModifiers {
             if _key[_key.startIndex].isASCII {
                 key = Char(id: count, value: _key)

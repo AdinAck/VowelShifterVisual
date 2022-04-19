@@ -18,6 +18,8 @@ class VowelShift: ObservableObject {
     @Published var running: Bool = false
     @Published var swapping: Bool = false
     @Published var swapStage: Int = 0
+    @Published var heldCharStage: Int = 0
+    @Published var heldCharValue: Char = Char()
     
     var __leftCursor: Int!
     var __rightCursor: Int!
@@ -35,7 +37,10 @@ class VowelShift: ObservableObject {
     func shift(in textArr: [String]) async {
         // initialize left cursor (find last vowel)
         __leftCursor = text.count - 1
-        update { self.leftCursor = self.__leftCursor }
+        update {
+            self.leftCursor = self.__leftCursor
+            self.heldCharStage = 0
+        }
         
         try? await Task.sleep(nanoseconds: speed)
         
@@ -61,6 +66,11 @@ class VowelShift: ObservableObject {
         // store last vowel for later
         let lastVowel = text[__leftCursor].value
         
+        update {
+            self.heldCharStage = 1
+            self.heldCharValue.value = lastVowel
+        }
+        
         // iterate
         for (i, char) in textArr.enumerated() {
             // check for stop event
@@ -79,13 +89,15 @@ class VowelShift: ObservableObject {
             
             // place saved vowel and end
             if __rightCursor == lastVowelPos {
-                update {
-                    self.text[self.__leftCursor] = Char(id: self.__leftCursor, value: lastVowel, swapped: true)
-                }
+                update { self.heldCharStage = 2 }
                 
                 try? await Task.sleep(nanoseconds: speed)
                 
                 update {
+                    self.text[self.__leftCursor] = Char(id: self.__leftCursor, value: lastVowel, swapped: true)
+                    
+                    self.heldCharStage = 3
+                    
                     self.leftCursor = nil
                     self.rightCursor = nil
                 }
