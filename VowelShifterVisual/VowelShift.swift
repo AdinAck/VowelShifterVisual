@@ -89,6 +89,8 @@ class VowelShift: ObservableObject {
             
             // place saved vowel and end
             if __rightCursor == lastVowelPos {
+                try? await Task.sleep(nanoseconds: speed)
+                
                 update { self.heldCharStage = 2 }
                 
                 try? await Task.sleep(nanoseconds: speed)
