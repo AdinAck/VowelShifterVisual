@@ -8,72 +8,84 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State var rawText: String = ""
-    @State var chars: [Char] = []
     @StateObject var shifter = VowelShift()
+    @StateObject var keyView = KeyView()
     
     var body: some View {
-        ZStack {
-            TextEditor(text: $rawText)
-            .opacity(0)
-            .onChange(of: rawText) { newValue in
-                withAnimation {
-                    chars = rawText.enumerated().map { (i, char) in Char(id: i, value: String(char)) }
-                }
-            }
+        ZStack(alignment: .center) {
+            // capture key events
+            KeyEventHandling()
+            .environmentObject(keyView)
             
-            VStack {
-                ZStack {
-                    HStack {
-                        ForEach(chars, id: \.id) { char in
-                            CharacterView(of: char)
-                            .environmentObject(shifter)
-                            .transition(.scale)
-                        }
-                    }
-                    .padding()
-                    
-                    if let cursor = shifter.leftCursor {
-                        HStack {
-                            ForEach(chars, id: \.id) { char in
-                                CharacterView(of: char, focusOn: cursor, withColor: .green)
-                                .environmentObject(shifter)
-                            }
-                        }
-                        .padding()
-                    }
-                    
-                    if let cursor = shifter.rightCursor {
-                        HStack {
-                            ForEach(chars, id: \.id) { char in
-                                CharacterView(of: char, focusOn: cursor, withColor: .blue)
-                                .environmentObject(shifter)
-                            }
-                        }
-                        .padding()
-                    }
-                }
-                
-                Button {
-                    Task {
-                        await shifter.shift(in: chars.map { $0.value })
-                    }
-                } label: {
-                    Image(systemName: "play.circle.fill")
-                    .renderingMode(.original)
-                    .foregroundColor(.blue)
-                    .font(.system(size: 40))
-                    .padding()
-                }
-                .buttonStyle(.borderless)
+            MainView()
+            .environmentObject(keyView)
+            .environmentObject(shifter)
+        }
+    }
+}
+
+class KeyView: NSView, ObservableObject {
+    @Published var key: Char = Char()
+    var count: Int = 0
+    
+    override var acceptsFirstResponder: Bool { true }
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 51 {
+            key = Char(value: "\\delete")
+            
+            if count > 0 { count -= 1}
+            
+        } else if let _key = event.charactersIgnoringModifiers {
+            if _key[_key.startIndex].isASCII {
+                key = Char(id: count, value: _key)
+                count += 1
             }
         }
+    }
+}
+
+struct KeyEventHandling: NSViewRepresentable {
+    @EnvironmentObject var view: KeyView
+    
+    func makeNSView(context: Context) -> NSView {
+        DispatchQueue.main.async { // wait till next event cycle
+            view.window?.makeFirstResponder(view)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
     }
 }
 
 struct Char: Identifiable, Hashable {
     var id: Int
     var value: String
+    var swapped: Bool
+    
+    init() { // null char
+        id = -1
+        value = ""
+        swapped = false
+    }
+    
+    init(value: String) { // delete char
+        id = -1
+        self.value = value
+        swapped = false
+    }
+    
+    init(id: Int, value: String) { // normal char
+        self.id = id
+        self.value = value
+        swapped = false
+    }
+    
+    init(id: Int, value: String, swapped: Bool) { // normal char
+        self.id = id
+        self.value = value
+        self.swapped = swapped
+    }
 }
 
 //struct ContentView_Previews: PreviewProvider {

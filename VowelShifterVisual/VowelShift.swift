@@ -9,54 +9,130 @@ import Foundation
 import SwiftUI
 
 class VowelShift: ObservableObject {
+    @Published var text: [Char] = []
+    @Published var speed: UInt64 = 500_000_000
+    
     @Published var leftCursor: Int!
     @Published var rightCursor: Int!
     
-    private let vowels: String = "aeiou"
+    @Published var running: Bool = false
+    @Published var swapping: Bool = false
+    @Published var swapStage: Int = 0
     
-    func shift(in textArr: [String]) async -> [String] {
-        // copy input
-        var result = textArr
-        
+    var __leftCursor: Int!
+    var __rightCursor: Int!
+    
+    let vowels: String = "aeiou"
+    
+    private func update(perform action: @escaping () -> Void) {
+        DispatchQueue.main.async {
+            withAnimation(.spring()) {
+                action()
+            }
+        }
+    }
+    
+    func shift(in textArr: [String]) async {
         // initialize left cursor (find last vowel)
-        leftCursor = result.count - 1
+        __leftCursor = text.count - 1
+        update { self.leftCursor = self.__leftCursor }
         
-        while !vowels.contains(result[leftCursor].lowercased()) || leftCursor < 0 {
-            leftCursor -= 1
+        try? await Task.sleep(nanoseconds: speed)
+        
+        while !vowels.contains(text[__leftCursor].value.lowercased()) {
+            if __leftCursor <= 0 {
+                update {
+                    self.running = false
+                    self.leftCursor = nil
+                    self.rightCursor = nil
+                }
+                return
+            }
+            __leftCursor -= 1
+            
+            update { self.leftCursor = self.__leftCursor }
+            
+            try? await Task.sleep(nanoseconds: speed)
         }
         
         // record last vowel position
-        let lastVowelPos = leftCursor
+        let lastVowelPos = __leftCursor
         
         // store last vowel for later
-        let lastVowel = result[leftCursor]
+        let lastVowel = text[__leftCursor].value
         
         // iterate
         for (i, char) in textArr.enumerated() {
-            DispatchQueue.main.async {
-                withAnimation {
-                    self.rightCursor = i // so it's published
-                    print(i)
+            // check for stop event
+            guard running else {
+                update {
+                    self.leftCursor = nil
+                    self.rightCursor = nil
                 }
+                
+                return
             }
             
-            if rightCursor == lastVowelPos {
-                result[leftCursor] = lastVowel
-                return result
+            __rightCursor = i
+            
+            update { self.rightCursor = self.__rightCursor }
+            
+            // place saved vowel and end
+            if __rightCursor == lastVowelPos {
+                update {
+                    self.text[self.__leftCursor] = Char(id: self.__leftCursor, value: lastVowel, swapped: true)
+                }
+                
+                try? await Task.sleep(nanoseconds: speed)
+                
+                update {
+                    self.leftCursor = nil
+                    self.rightCursor = nil
+                }
+                
+                break
             }
             
+            // swap
             if vowels.contains(char.lowercased()) {
-                result[leftCursor] = char
-                DispatchQueue.main.async {
-                    withAnimation {
-                        self.leftCursor = self.rightCursor
-                    }
+                let moved: (Int, Char) = (__leftCursor, Char(id: __leftCursor, value: char, swapped: true))
+                
+                // stage one
+                update { self.swapStage = 0 }
+                
+                try? await Task.sleep(nanoseconds: speed)
+                
+                update {
+                    self.swapping = true
+                    self.swapStage = 1
+                }
+                
+                try? await Task.sleep(nanoseconds: speed)
+                
+                // stage two (do swap)
+                update { self.swapStage = 2 }
+                
+                try? await Task.sleep(nanoseconds: speed)
+                
+                __leftCursor = __rightCursor
+                
+                update {
+                    self.swapping = false
+                    self.swapStage = 3
+                }
+                
+                try? await Task.sleep(nanoseconds: speed)
+                
+                update {
+                    self.text[moved.0] = moved.1
+                    self.leftCursor = self.__rightCursor
+                    self.swapStage = 4
                 }
             }
             
-            try? await Task.sleep(nanoseconds: 500_000_000)
+            try? await Task.sleep(nanoseconds: speed)
         }
         
-        return result
+        update { self.running = false }
     }
 }
